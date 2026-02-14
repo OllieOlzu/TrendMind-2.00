@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Stock AI Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: white;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      margin-bottom: 30px;
+    }
+
+    .stocks {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 12px 20px;
+      background: #1e1e1e;
+      border: 1px solid #444;
+      color: white;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: 0.2s;
+    }
+
+    button:hover {
+      background: #333;
+    }
+
+    #summary {
+      max-width: 800px;
+      margin: 20px auto;
+      padding: 15px;
+      background: #1a1a1a;
+      border-radius: 8px;
+    }
+
+    #news {
+      max-width: 800px;
+      margin: 20px auto;
+      text-align: left;
+    }
+
+    #news a {
+      color: #4da6ff;
+      text-decoration: none;
+    }
+
+    #news a:hover {
+      text-decoration: underline;
+    }
+
+    canvas {
+      max-width: 900px;
+      margin: 40px auto;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>📈 Stock AI Dashboard</h1>
+
+  <div class="stocks">
+    <button onclick="loadStock('AAPL')">Apple</button>
+    <button onclick="loadStock('MSFT')">Microsoft</button>
+    <button onclick="loadStock('GOOG')">Google</button>
+    <button onclick="loadStock('AMZN')">Amazon</button>
+    <button onclick="loadStock('TSLA')">Tesla</button>
+  </div>
+
+  <div id="summary"></div>
+
+  <div id="news"></div>
+
+  <canvas id="chart"></canvas>
+
+<script>
+let chart;
+
+async function loadStock(symbol) {
+  document.getElementById("summary").innerHTML = "Loading summary...";
+  document.getElementById("news").innerHTML = "";
+  
+  // Fetch news
+  const newsRes = await fetch(`/api/news?stock=${symbol}`);
+  const newsData = await newsRes.json();
+
+  const headlines = newsData.results.map(a => a.title).join("\n");
+
+  // Display news
+  document.getElementById("news").innerHTML =
+    "<h2>Latest Headlines</h2>" +
+    newsData.results.map(a =>
+      `<p><a href="${a.link}" target="_blank">${a.title}</a><br><small>${a.source} - ${a.date}</small></p>`
+    ).join("");
+
+  // Send headlines to Groq for summary
+  const summaryRes = await fetch("/api/newssummary", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: headlines })
+  });
+
+  const summaryData = await summaryRes.json();
+
+  document.getElementById("summary").innerHTML =
+    `<h2>AI Summary</h2><p>${summaryData.reply}</p>`;
+
+  // Fetch stock price data
+  const stockRes = await fetch(`/api/stooq?stock=${symbol}`);
+  const stockData = await stockRes.json();
+
+  const labels = stockData.map(d => d.date);
+  const prices = stockData.map(d => d.close);
+
+  if (chart) chart.destroy();
+
+  const ctx = document.getElementById("chart").getContext("2d");
+
+  chart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: `${symbol} Closing Price`,
+        data: prices,
+        borderColor: "#4da6ff",
+        backgroundColor: "rgba(77,166,255,0.1)",
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: {
+          ticks: { color: "white" }
+        },
+        y: {
+          ticks: { color: "white" }
+        }
+      },
+      plugins: {
+        legend: {
+          labels: { color: "white" }
+        }
+      }
+    }
+  });
+}
+</script>
+
+</body>
+</html>
